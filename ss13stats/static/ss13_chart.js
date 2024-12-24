@@ -182,3 +182,113 @@ class SS13GlobalHourlyAveragesChart extends SS13GlobalWeekdayAveragesChart {
 class SS13ServerHourlyAveragesChart extends SS13GlobalHourlyAveragesChart {
 	static value_key = "player_count";
 }
+
+
+class SS13CurseChart {
+	static chart_type = "line";
+	static trend_line = true;
+	static value_key = "value";
+
+	constructor(canvas_id, title0, title1, endpoint) {
+		this.canvas_id = canvas_id;
+		this.title0 = title0;
+		this.endpoint = endpoint;
+		this.title1 = title1;
+
+		let chart_options = {
+			type: this.constructor.chart_type,
+			data: {
+				labels: [],
+				datasets: [{
+					label: this.title0,
+					data: [],
+					borderColor: "#00ff00aa",
+					borderWidth: 2
+				},
+				{
+					label: this.title1,
+					data: [],
+					borderColor: "#00ffffaa",
+					borderWidth: 2
+				}]
+			},
+			options: {
+				responsive: true,
+				scales: {
+					x: {
+						ticks: {
+							display: true
+						}
+				   }
+				}
+			}
+		}
+
+		if (this.constructor.trend_line) {
+			chart_options.data.datasets[0].trendlineLinear = {
+				style: "#ff0000aa",
+				lineStyle: "dotted",
+				width: 2
+			}
+
+			chart_options.data.datasets[1].trendlineLinear = {
+				style: "#ff0000aa",
+				lineStyle: "dotted",
+				width: 2
+			}
+		}
+
+		this.chart = new Chart(document.getElementById(this.canvas_id), chart_options);
+
+		this.update();
+
+		stats_charts.push(this);
+	}
+
+	update() {
+		var stats_chart = this; // omg i love js scope
+
+		$.getJSON(this.generate_endpoint(), function(data) {
+			stats_chart.load_data(data);
+		})
+	}
+
+	load_data(data) {
+		this.chart.data.labels = data.ss13.map(entry => this.format_timestamp(entry.timestamp));
+
+		this.chart.data.datasets[0].data = data.ss14.map(entry => entry[this.constructor.value_key]);
+		this.chart.data.datasets[1].data = data.ss13.map(entry => entry[this.constructor.value_key]);
+
+		var diff = this.chart.data.labels.length - this.chart.data.datasets[0].data.length;
+		for (var i = 0; i < diff; i++) {
+			this.chart.data.datasets[0].data.unshift(null);
+		}
+
+		var diff = this.chart.data.labels.length - this.chart.data.datasets[1].data.length;
+		for (var i = 0; i < diff; i++) {
+			this.chart.data.datasets[1].data.unshift(null);
+		}
+
+		this.chart.update();
+
+		$("#curse_prediction").text(data.days_until_broken ? `in ${data.days_until_broken} days.` : "never.")
+	}
+
+	format_timestamp(timestamp) {
+		var date = new Date(timestamp + 'Z'); // Z indicates UTC
+		return date.toLocaleDateString('en-US', {timeZone: "UTC"});
+	}
+
+	clear() {
+		this.chart.data.labels = [];
+		for (var dataset in this.chart.data.datasets) {
+			this.chart.data.datasets[dataset].data = [];
+		}
+		
+		this.chart.update();
+	}
+
+	generate_endpoint() {
+		return this.endpoint;
+	}
+}
